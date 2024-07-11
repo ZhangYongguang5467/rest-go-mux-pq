@@ -1,0 +1,34 @@
+steps:
+  # Build the Docker image for the Go application
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/${_CUSTOM_PROJECT_ID}/rest-go-mux-pq', '.']
+
+  # Push the Docker image for the Go application to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/${_CUSTOM_PROJECT_ID}/rest-go-mux-pq']
+
+  # Deploy the Docker containers on the Google Compute Engine instance
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'compute'
+      - 'ssh'
+      - '${_INSTANCE_NAME}'
+      - '--project=${_CUSTOM_PROJECT_ID}'
+      - '--zone=${_ZONE}'
+      - '--command'
+      - |
+        bash -c "
+        sudo docker pull gcr.io/${_CUSTOM_PROJECT_ID}/rest-go-mux-pq &&
+        sudo docker stop rest-go-mux-pq || true &&
+        sudo docker rm rest-go-mux-pq || true &&
+        sudo docker run -d --name rest-go-mux-pq -p 8000:8000 -e DB_USER=postgres -e DB_PASSWORD=sa -e DB_HOST=postgres -e DB_PORT=5432 -e DB_NAME=postgres -e DB_SSLMODE=disable gcr.io/${_CUSTOM_PROJECT_ID}/rest-go-mux-pq
+        "
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# Substitutions for the Cloud Build
+substitutions:
+  _CUSTOM_PROJECT_ID: 'bamboo-shift-418807'
+  _INSTANCE_NAME: 'web-api-instance1'
+  _ZONE: 'asia-northeast1-a'
